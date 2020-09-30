@@ -10,6 +10,15 @@ import 'package:boxgame/components/macho-fly.dart';
 import 'package:boxgame/components/drooler-fly.dart';
 import 'package:boxgame/components/agile-fly.dart';
 import 'package:flutter/gestures.dart';
+import 'package:boxgame/view.dart';
+import 'package:boxgame/views/home-view.dart';
+import 'package:boxgame/components/start-button.dart';
+import 'package:boxgame/views/lost-view.dart';
+import 'package:boxgame/controllers/spawner.dart';
+import 'package:boxgame/components/credits-button.dart';
+import 'package:boxgame/components/help-button.dart';
+import 'package:boxgame/views/help-view.dart';
+import 'package:boxgame/views/credits-view.dart';
 
 class LangawGame extends Game {
   Size screenSize;
@@ -19,6 +28,20 @@ class LangawGame extends Game {
 
   Backyard background;
 
+  View activeView = View.home;
+  HomeView homeView;
+
+  StartButton startButton;
+
+  LostView lostView;
+
+  FlySpawner spawner;
+
+  HelpButton helpButton;
+  CreditsButton creditsButton;
+
+  HelpView helpView;
+  CreditsView creditsView;
 
   LangawGame() {
     initialize();
@@ -27,9 +50,21 @@ class LangawGame extends Game {
   void initialize() async {
     flies = List();
     resize(await Flame.util.initialDimensions());
+
     background = Backyard(this);
+    homeView = HomeView(this);
+    startButton = StartButton(this);
+    lostView = LostView(this);
+
+
     rnd = Random();
-    spawnFly();
+    spawner = FlySpawner(this);
+
+    helpButton = HelpButton(this);
+    creditsButton = CreditsButton(this);
+
+    helpView = HelpView(this);
+    creditsView = CreditsView(this);
   }
 
   @override
@@ -41,13 +76,28 @@ class LangawGame extends Game {
     background.render(canvas);
 
     flies.forEach((Fly fly)=> fly.render(canvas));
+
+    if (activeView == View.home) homeView.render(canvas);
+
+    if (activeView == View.home || activeView == View.lost) {
+      startButton.render(canvas);
+      helpButton.render(canvas);
+      creditsButton.render(canvas);
+    }
+
+    if (activeView == View.lost) lostView.render(canvas);
+
+    if (activeView == View.help) helpView.render(canvas);
+    if (activeView == View.credits) creditsView.render(canvas);
+
   }
 
   @override
   void update(double t) {
+
     flies.forEach((Fly fly)=> fly.update(t));
     flies.removeWhere((Fly fly) => fly.isOffScreen);
-
+    spawner.update(t);
   }
 
   @override
@@ -56,12 +106,54 @@ class LangawGame extends Game {
     titleSize = screenSize.width/9;
   }
 
+
   void onTapDown(TapDownDetails details) {
+    bool isHandled = false;
+
+    if (!isHandled) {
+      if (activeView == View.help || activeView == View.credits) {
+        activeView = View.home;
+        isHandled = true;
+      }
+    }
+
+    if (!isHandled && startButton.rect.contains(details.globalPosition)) {
+      if (activeView == View.home || activeView == View.lost) {
+        startButton.onTapDown();
+        isHandled = true;
+      }
+    }
+
+    if (!isHandled) {
+      bool didHitAFly = false;
       for (var i = 0; i < flies.length; i++) {
         if (flies[i].flyRect.contains(details.globalPosition)) {
           flies[i].onTapDown();
+          isHandled = true;
+          didHitAFly = true;
         }
       }
+      if (activeView == View.playing && !didHitAFly) {
+        activeView = View.lost;
+      }
+    }
+
+    // 教程按钮
+    if (!isHandled && helpButton.rect.contains(details.globalPosition)) {
+      if (activeView == View.home || activeView == View.lost) {
+        helpButton.onTapDown();
+        isHandled = true;
+      }
+    }
+
+// 感谢按钮
+    if (!isHandled && creditsButton.rect.contains(details.globalPosition)) {
+      if (activeView == View.home || activeView == View.lost) {
+        creditsButton.onTapDown();
+        isHandled = true;
+      }
+    }
+
   }
 
   void spawnFly() {
